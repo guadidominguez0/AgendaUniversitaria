@@ -34,7 +34,12 @@
         </div>
 
         <!-- Navigation Tabs -->
-        <div class="tabs">
+        <div class="tabs" id="tabsMenu">
+            <div class="hamburger-menu" id="hamburgerMenu" onclick="toggleTabsMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
             <button class="tab active" onclick="showTab('agenda')">Horario</button>
             <button class="tab" onclick="showTab('schedule')">Materias</button>
             <button class="tab" onclick="showTab('attendance')">Inasistencias</button>
@@ -46,7 +51,18 @@
             <!-- Weekly Agenda Tab -->
             <div id="agenda-tab" class="tab-content active">
                 <h2 class="section-title">5° Semestre</h2>
+                
+                <!-- Desktop schedule -->
                 <div id="semesterScheduleContainer"></div>
+                
+                <!-- Mobile schedule - Today/Tomorrow View -->
+                <div class="mobile-day-selector">
+                    <div class="mobile-schedule-header">
+                        <button id="todayBtn" class="active" onclick="showMobileDay('today')">Hoy</button>
+                        <button id="tomorrowBtn" onclick="showMobileDay('tomorrow')">Mañana</button>
+                    </div>
+                    <div id="mobileScheduleContainer"></div>
+                </div>
             </div>
 
             <!-- Schedule Tab -->

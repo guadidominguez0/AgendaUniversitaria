@@ -11,13 +11,43 @@ const academicPeriods = [
 ];
 const weekdays = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
 
-let scheduleData = JSON.parse(localStorage.getItem('scheduleData')) || [];
-let attendanceData = JSON.parse(localStorage.getItem('attendanceData')) || {};
+let scheduleData = [];
+let attendanceData = {};
 let currentSelectedSubject = '';
 let editSubjectId = null;
 let pendingDayHourList = [];
+let currentMobileView = 'today';
+
+// Funciones de persistencia automática
+function loadData() {
+    try {
+        const savedSchedule = localStorage.getItem('academic_schedule_data');
+        const savedAttendance = localStorage.getItem('academic_attendance_data');
+        
+        if (savedSchedule) {
+            scheduleData = JSON.parse(savedSchedule);
+        }
+        if (savedAttendance) {
+            attendanceData = JSON.parse(savedAttendance);
+        }
+    } catch (error) {
+        console.error('Error al cargar datos:', error);
+        scheduleData = [];
+        attendanceData = {};
+    }
+}
+
+function saveData() {
+    try {
+        localStorage.setItem('academic_schedule_data', JSON.stringify(scheduleData));
+        localStorage.setItem('academic_attendance_data', JSON.stringify(attendanceData));
+    } catch (error) {
+        console.error('Error al guardar datos:', error);
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
+    loadData();
     populatePeriodOptions();
     updateColorPreview();
     showTab('agenda');
@@ -52,6 +82,7 @@ function populatePeriodOptions() {
     endSelect.innerHTML = '<option value="">Selecciona período final</option>' +
         academicPeriods.map(p => `<option value="${p.id}">${p.name} (${p.startTime}-${p.endTime})</option>`).join('');
 }
+
 function updateEndPeriodOptions(startId='addStartPeriod',endId='addEndPeriod') {
     const startVal = Number(document.getElementById(startId).value);
     const endSelect = document.getElementById(endId);
@@ -100,6 +131,7 @@ function renderPendingDayHourList() {
         }).join('') +
         '</ul>';
 }
+
 function removePendingDayHour(idx) {
     pendingDayHourList.splice(idx,1);
     renderPendingDayHourList();
@@ -187,7 +219,6 @@ function clearSubjectForm() {
     btn.classList.remove("ocultar");
 }
 
-// Agrupación de materias para la grilla de gestión (una tarjeta por materia+profesor)
 function getGroupedSubjects() {
     const grouped = {};
     for (const s of scheduleData) {
@@ -273,7 +304,6 @@ function editSubject(id) {
 function deleteSubject(id) {
     if (confirm('¿Eliminar esta materia?')) {
         const subject = scheduleData.find(s=>s.id===id);
-        // Elimina todos los horarios de esa materia+profesor
         scheduleData = scheduleData.filter(s => !(s.name === subject.name && s.professorEmail === subject.professorEmail));
         if (attendanceData[subject.name]) delete attendanceData[subject.name];
         saveData();
@@ -285,18 +315,22 @@ function deleteSubject(id) {
     }
 }
 
-function saveData() {
-    localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
-    localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
-}
-
-// AGENDA SEMANAL: muestra la materia en cada período asignado
+// Desktop Schedule Rendering
 function renderSemesterSchedule() {
     const container = document.getElementById('semesterScheduleContainer');
+    
+    // Show desktop schedule only on larger screens
+    if (window.innerWidth <= 768) {
+        container.innerHTML = '';
+        renderMobileSchedule();
+        return;
+    }
+
     if (scheduleData.length === 0) {
         container.innerHTML = '<div class="no-data">No hay materias para mostrar en el horario<br><small>Comienza agregando tus materias en la pestaña "Materias"</small></div>';
         return;
     }
+
     let scheduleHTML = '<div class="semester-schedule">';
     scheduleHTML += '<div class="time-header">Hora</div>';
     weekdays.forEach(day => {
@@ -308,7 +342,6 @@ function renderSemesterSchedule() {
             <small>${period.startTime} - ${period.endTime}</small>
         </div>`;
         for (let day = 1; day <= 5; day++) {
-            // Mostrar todas las materias que ocupan este día y periodo
             const daySubjects = scheduleData.filter(subject => {
                 return subject.day === day && period.id >= subject.startPeriod && period.id <= subject.endPeriod;
             });
@@ -327,7 +360,110 @@ function renderSemesterSchedule() {
     container.innerHTML = scheduleHTML;
 }
 
-// Color preview materia
+// Mobile Schedule Rendering - Today/Tomorrow Table View
+function renderMobileSchedule() {
+    const container = document.getElementById('mobileScheduleContainer');
+    
+    if (scheduleData.length === 0) {
+        container.innerHTML = '<div class="no-data">No hay materias para mostrar<br><small>Agrega materias primero</small></div>';
+        return;
+    }
+
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayWeekday = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const tomorrowWeekday = tomorrow.getDay();
+
+    // Convert to our format (1 = Monday, 5 = Friday)
+    const todayDay = todayWeekday === 0 ? 0 : (todayWeekday <= 5 ? todayWeekday : 0); // 0 means weekend
+    const tomorrowDay = tomorrowWeekday === 0 ? 0 : (tomorrowWeekday <= 5 ? tomorrowWeekday : 0);
+
+    let scheduleHTML = '<div class="mobile-schedule-table">';
+
+    // Show today's schedule
+    if (currentMobileView === 'today') {
+        scheduleHTML += renderMobileDaySchedule(todayDay, 'Hoy');
+    } else {
+        scheduleHTML += renderMobileDaySchedule(tomorrowDay, 'Mañana');
+    }
+
+    scheduleHTML += '</div>';
+    container.innerHTML = scheduleHTML;
+}
+
+function renderMobileDaySchedule(dayIndex, dayTitle) {
+    if (dayIndex === 0 || dayIndex > 5) {
+        return `<div class="mobile-schedule-day">
+            <div class="mobile-day-title">${dayTitle} - Fin de semana</div>
+            <div class="mobile-periods-container">
+                <div style="padding: 20px; text-align: center; color: var(--text-medium);">
+                    No hay clases los fines de semana
+                </div>
+            </div>
+        </div>`;
+    }
+
+    const daySubjects = scheduleData.filter(s => s.day === dayIndex);
+    
+    if (daySubjects.length === 0) {
+        return `<div class="mobile-schedule-day">
+            <div class="mobile-day-title">${dayTitle} - ${weekdays[dayIndex - 1]}</div>
+            <div class="mobile-periods-container">
+                <div style="padding: 20px; text-align: center; color: var(--text-medium);">
+                    No hay materias programadas para ${dayTitle.toLowerCase()}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    let dayHTML = `<div class="mobile-schedule-day">
+        <div class="mobile-day-title">${dayTitle} - ${weekdays[dayIndex - 1]}</div>
+        <div class="mobile-periods-container">`;
+
+    academicPeriods.forEach(period => {
+        const periodSubjects = daySubjects.filter(subject => 
+            period.id >= subject.startPeriod && period.id <= subject.endPeriod
+        );
+
+        dayHTML += '<div class="mobile-period-row">';
+        dayHTML += `<div class="mobile-time-column">
+            <div>${period.startTime}</div>
+            <div>${period.endTime}</div>
+        </div>`;
+        dayHTML += '<div class="mobile-subject-column">';
+
+        if (periodSubjects.length > 0) {
+            periodSubjects.forEach(subject => {
+                dayHTML += `<div class="mobile-subject-block ${subject.modality}" data-color="${subject.colorTheme}">
+                    <div class="mobile-subject-name">${subject.name}</div>
+                    <div class="mobile-subject-details">${subject.modality === 'virtual' ? 'Virtual' : 'Presencial'}</div>
+                </div>`;
+            });
+        } else {
+            dayHTML += '<div class="mobile-no-subject">Sin clases</div>';
+        }
+
+        dayHTML += '</div>';
+        dayHTML += '</div>';
+    });
+
+    dayHTML += '</div></div>';
+    return dayHTML;
+}
+
+function showMobileDay(view) {
+    currentMobileView = view;
+    
+    // Update button states
+    document.getElementById('todayBtn').classList.toggle('active', view === 'today');
+    document.getElementById('tomorrowBtn').classList.toggle('active', view === 'tomorrow');
+    
+    renderMobileSchedule();
+}
+
+// Color preview
 function updateColorPreview() {
     const colorTheme = document.getElementById('colorTheme').value;
     const preview = document.getElementById('selectedColorPreview');
@@ -336,13 +472,14 @@ function updateColorPreview() {
     colorName.textContent = document.getElementById('colorTheme').selectedOptions[0].textContent;
 }
 
-// INASISTENCIAS
+// Attendance functions
 function updateAttendanceDropdown() {
     const select = document.getElementById('attendanceSubject');
     const uniqueSubjects = [...new Set(scheduleData.map(s => s.name))];
     select.innerHTML = '<option value="">Selecciona una materia</option>' + 
         uniqueSubjects.map(name => `<option value="${name}">${name}</option>`).join('');
 }
+
 function openAbsenceModal() {
     const subjectName = document.getElementById('attendanceSubject').value;
     if (!subjectName) {
@@ -354,10 +491,12 @@ function openAbsenceModal() {
     document.getElementById('absenceReason').value = '';
     document.getElementById('absenceModal').classList.add('active');
 }
+
 function closeAbsenceModal() {
     document.getElementById('absenceModal').classList.remove('active');
     currentSelectedSubject = '';
 }
+
 function addAbsence() {
     const date = document.getElementById('absenceDate').value;
     const reason = document.getElementById('absenceReason').value.trim();
@@ -382,6 +521,7 @@ function addAbsence() {
     closeAbsenceModal();
     showNotification(`Inasistencia agregada a ${currentSelectedSubject}`, 'success');
 }
+
 function removeAbsence(subject, date) {
     if (confirm('¿Estás seguro de eliminar esta inasistencia?')) {
         attendanceData[subject] = attendanceData[subject].filter(abs => abs.date !== date);
@@ -390,6 +530,7 @@ function removeAbsence(subject, date) {
         showNotification('Inasistencia eliminada correctamente', 'success');
     }
 }
+
 function calculateAbsenceStats(subject) {
     const subjectData = scheduleData.find(s => s.name === subject.name);
     const absences = attendanceData[subject.name] || [];
@@ -404,6 +545,7 @@ function calculateAbsenceStats(subject) {
         isAtLimit: false,
         hoursPerDay: null
     };
+
     if (stats.totalClasses && stats.minAttendancePercentage) {
         const periods = subjectData.endPeriod - subjectData.startPeriod + 1;
         stats.hoursPerDay = periods;
@@ -419,6 +561,7 @@ function calculateAbsenceStats(subject) {
     }
     return stats;
 }
+
 function renderAttendanceList() {
     const container = document.getElementById('attendanceList');
     const subjects = Object.keys(attendanceData);
@@ -459,8 +602,10 @@ function renderAttendanceList() {
                     year: 'numeric'
                 });
                 return `<div class="absence-item">
-                    <div class="absence-date">${formattedDate}</div>
-                    <div class="absence-reason">${absence.reason}</div>
+                    <div>
+                        <div class="absence-date">${formattedDate}</div>
+                        <div class="absence-reason">${absence.reason}</div>
+                    </div>
                     <button class="remove-absence-btn" onclick="removeAbsence('${subjectName}', '${absence.date}')">
                         Eliminar
                     </button>
@@ -473,9 +618,9 @@ function renderAttendanceList() {
                     <div>
                         <strong>${subjectName}</strong><br>
                         <small style="color: var(--text-medium);">Total de inasistencias</small>
+                        ${statsHTML}
                     </div>
                     <div class="attendance-count">${absences.length}</div>
-                    ${statsHTML}
                 </div>
                 <div class="absence-list">
                     ${absences.length > 0 ? absencesList : '<div class="no-data">No hay inasistencias registradas</div>'}
@@ -483,6 +628,7 @@ function renderAttendanceList() {
             </div>`;
         }).join('');
 }
+
 function toggleStatsDetails(idx) {
     const el = document.getElementById('stats-details-' + idx);
     const btn = el.previousElementSibling;
@@ -495,21 +641,40 @@ function toggleStatsDetails(idx) {
     }
 }
 
-// Tabs y hora actual
+// Navigation
 function showTab(tab) {
     document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(tabEl => tabEl.classList.remove('active'));
+    
+    // Close mobile menu when selecting a tab
+    if (window.innerWidth <= 768) {
+        document.getElementById('tabsMenu').classList.remove('open');
+    }
+    
     if (tab === 'agenda') {
-        document.querySelector('.tab:nth-child(1)').classList.add('active');
+        document.querySelector('.tabs .tab:nth-child(2)').classList.add('active');
         document.getElementById('agenda-tab').classList.add('active');
+        renderSemesterSchedule(); // Refresh schedule view
     } else if (tab === 'schedule') {
-        document.querySelector('.tab:nth-child(2)').classList.add('active');
+        document.querySelector('.tabs .tab:nth-child(3)').classList.add('active');
         document.getElementById('schedule-tab').classList.add('active');
     } else if (tab === 'attendance') {
-        document.querySelector('.tab:nth-child(3)').classList.add('active');
+        document.querySelector('.tabs .tab:nth-child(4)').classList.add('active');
         document.getElementById('attendance-tab').classList.add('active');
+    } else if (tab === 'professors') {
+        document.querySelector('.tabs .tab:nth-child(5)').classList.add('active');
+        document.getElementById('professors-tab').classList.add('active');
+        renderProfessorsList();
     }
 }
+
+// Mobile hamburger menu
+function toggleTabsMenu() {
+    const tabsMenu = document.getElementById('tabsMenu');
+    tabsMenu.classList.toggle('open');
+}
+
+// Current time update
 function updateCurrentTime() {
     const now = new Date();
     const time = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -518,34 +683,7 @@ function updateCurrentTime() {
     document.getElementById('currentDate').textContent = date.charAt(0).toUpperCase() + date.slice(1);
 }
 
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 16px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 600;
-        z-index: 1000;
-        max-width: 300px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        transform: translateX(100%);
-        transition: all 0.4s ease;
-        ${type === 'success' ? 'background: var(--accent-green);' : ''}
-        ${type === 'error' ? 'background: #b71c1c;' : ''}
-        ${type === 'info' ? 'background: var(--brown-medium);' : ''}
-    `;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => { notification.style.transform = 'translateX(0)'; }, 100);
-    setTimeout(() => {
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => notification.remove(), 400);
-    }, 3000);
-}
-
+// Professors functions
 function getUniqueProfessors() {
     const profs = {};
     for (const s of scheduleData) {
@@ -575,7 +713,6 @@ function renderProfessorsList() {
                 <div class="professor-email-row">
                     <span class="professor-email" id="prof-email-${idx}">${prof.email}</span>
                     <span class="copy-email-icon" title="Copiar correo" onclick="copyProfessorEmail('${prof.email}', this)">
-                        <!-- SVG clipboard icon -->
                         <svg width="19" height="19" viewBox="0 0 20 20" fill="none" style="display:inline;vertical-align:middle;">
                           <rect x="5.5" y="4.5" width="10" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
                           <rect x="3.5" y="2.5" width="10" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
@@ -588,37 +725,78 @@ function renderProfessorsList() {
 }
 
 function copyProfessorEmail(email, iconElem) {
-    navigator.clipboard.writeText(email).then(() => {
-        iconElem.classList.add('copied');
-        const originalTitle = iconElem.title;
-        iconElem.title = "¡Copiado!";
-        setTimeout(() => {
-            iconElem.classList.remove('copied');
-            iconElem.title = originalTitle;
-        }, 1200);
-        showNotification("Correo copiado al portapapeles", "success");
-    });
-}
-
-function showTab(tab) {
-    document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(tabEl => tabEl.classList.remove('active'));
-    if (tab === 'agenda') {
-        document.querySelector('.tab:nth-child(1)').classList.add('active');
-        document.getElementById('agenda-tab').classList.add('active');
-    } else if (tab === 'schedule') {
-        document.querySelector('.tab:nth-child(2)').classList.add('active');
-        document.getElementById('schedule-tab').classList.add('active');
-    } else if (tab === 'attendance') {
-        document.querySelector('.tab:nth-child(3)').classList.add('active');
-        document.getElementById('attendance-tab').classList.add('active');
-    } else if (tab === 'professors') {
-        document.querySelector('.tab:nth-child(4)').classList.add('active');
-        document.getElementById('professors-tab').classList.add('active');
-        renderProfessorsList();
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(email).then(() => {
+            iconElem.classList.add('copied');
+            const originalTitle = iconElem.title;
+            iconElem.title = "¡Copiado!";
+            setTimeout(() => {
+                iconElem.classList.remove('copied');
+                iconElem.title = originalTitle;
+            }, 1200);
+            showNotification("Correo copiado al portapapeles", "success");
+        });
+    } else {
+        showNotification("No se pudo copiar el correo", "error");
     }
 }
 
+// Notification system
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        z-index: 1000;
+        max-width: 300px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        transform: translateX(100%);
+        transition: all 0.4s ease;
+        ${type === 'success' ? 'background: var(--accent-green);' : ''}
+        ${type === 'error' ? 'background: #b71c1c;' : ''}
+        ${type === 'info' ? 'background: var(--brown-medium);' : ''}
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    setTimeout(() => { notification.style.transform = 'translateX(0)'; }, 100);
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 400);
+    }, 3000);
+}
+
+// Event listeners
 document.getElementById('absenceModal').addEventListener('click', function(e) {
     if (e.target === this) closeAbsenceModal();
+});
+
+// Window resize handler for responsive schedule
+window.addEventListener('resize', function() {
+    renderSemesterSchedule();
+});
+
+// Auto-guardado cada 30 segundos como medida de seguridad
+setInterval(function() {
+    if (scheduleData.length > 0 || Object.keys(attendanceData).length > 0) {
+        saveData();
+    }
+}, 30000);
+
+// Guardar antes de cerrar la página
+window.addEventListener('beforeunload', function() {
+    saveData();
+});
+
+// Close mobile menu when clicking outside
+document.addEventListener('click', function(e) {
+    const tabsMenu = document.getElementById('tabsMenu');
+    if (window.innerWidth <= 768 && tabsMenu.classList.contains('open') && 
+        !tabsMenu.contains(e.target)) {
+        tabsMenu.classList.remove('open');
+    }
 });
