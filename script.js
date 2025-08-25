@@ -369,28 +369,80 @@ function renderMobileSchedule() {
         return;
     }
 
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const todayWeekday = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const tomorrowWeekday = tomorrow.getDay();
-
-    // Convert to our format (1 = Monday, 5 = Friday)
-    const todayDay = todayWeekday === 0 ? 0 : (todayWeekday <= 5 ? todayWeekday : 0); // 0 means weekend
-    const tomorrowDay = tomorrowWeekday === 0 ? 0 : (tomorrowWeekday <= 5 ? tomorrowWeekday : 0);
-
     let scheduleHTML = '<div class="mobile-schedule-table">';
 
-    // Show today's schedule
-    if (currentMobileView === 'today') {
-        scheduleHTML += renderMobileDaySchedule(todayDay, 'Hoy');
+    if (currentMobileView === 'fullweek') {
+        // Show full week schedule
+        scheduleHTML += renderMobileFullWeekSchedule();
     } else {
-        scheduleHTML += renderMobileDaySchedule(tomorrowDay, 'Mañana');
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const todayWeekday = today.getDay();
+        const tomorrowWeekday = tomorrow.getDay();
+
+        const todayDay = todayWeekday === 0 ? 0 : (todayWeekday <= 5 ? todayWeekday : 0);
+        const tomorrowDay = tomorrowWeekday === 0 ? 0 : (tomorrowWeekday <= 5 ? tomorrowWeekday : 0);
+
+        if (currentMobileView === 'today') {
+            scheduleHTML += renderMobileDaySchedule(todayDay, 'Hoy');
+        } else {
+            scheduleHTML += renderMobileDaySchedule(tomorrowDay, 'Mañana');
+        }
     }
 
     scheduleHTML += '</div>';
     container.innerHTML = scheduleHTML;
+}
+
+function renderMobileFullWeekSchedule() {
+    let fullWeekHTML = '';
+    
+    for (let dayIndex = 1; dayIndex <= 5; dayIndex++) {
+        const daySubjects = scheduleData.filter(s => s.day === dayIndex);
+        
+        fullWeekHTML += `<div class="mobile-schedule-day">
+            <div class="mobile-day-title">${weekdays[dayIndex - 1]}</div>
+            <div class="mobile-periods-container">`;
+
+        if (daySubjects.length === 0) {
+            fullWeekHTML += `<div style="padding: 20px; text-align: center; color: var(--text-medium);">
+                No hay materias programadas
+            </div>`;
+        } else {
+            academicPeriods.forEach(period => {
+                const periodSubjects = daySubjects.filter(subject => 
+                    period.id >= subject.startPeriod && period.id <= subject.endPeriod
+                );
+
+                fullWeekHTML += '<div class="mobile-period-row">';
+                fullWeekHTML += `<div class="mobile-time-column">
+                    <div>${period.startTime}</div>
+                    <div>${period.endTime}</div>
+                </div>`;
+                fullWeekHTML += '<div class="mobile-subject-column">';
+
+                if (periodSubjects.length > 0) {
+                    periodSubjects.forEach(subject => {
+                        fullWeekHTML += `<div class="mobile-subject-block ${subject.modality}" data-color="${subject.colorTheme}">
+                            <div class="mobile-subject-name">${subject.name}</div>
+                            <div class="mobile-subject-details">${subject.modality === 'virtual' ? 'Virtual' : 'Presencial'}</div>
+                        </div>`;
+                    });
+                } else {
+                    fullWeekHTML += '<div class="mobile-no-subject">Sin clases</div>';
+                }
+
+                fullWeekHTML += '</div>';
+                fullWeekHTML += '</div>';
+            });
+        }
+
+        fullWeekHTML += '</div></div>';
+    }
+    
+    return fullWeekHTML;
 }
 
 function renderMobileDaySchedule(dayIndex, dayTitle) {
@@ -459,6 +511,7 @@ function showMobileDay(view) {
     // Update button states
     document.getElementById('todayBtn').classList.toggle('active', view === 'today');
     document.getElementById('tomorrowBtn').classList.toggle('active', view === 'tomorrow');
+    document.getElementById('fullWeekBtn').classList.toggle('active', view === 'fullweek');
     
     renderMobileSchedule();
 }

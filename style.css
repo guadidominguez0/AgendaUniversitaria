@@ -911,7 +911,7 @@ button:hover {
 
     .mobile-schedule-header button {
         flex: 1;
-        padding: 12px 8px;
+        padding: 10px 6px; /* Reducir padding para ajustar 3 botones */
         border: 2px solid var(--accent-green);
         background: transparent;
         color: var(--accent-green);
@@ -921,6 +921,7 @@ button:hover {
         transition: all 0.3s ease;
         text-transform: none;
         letter-spacing: normal;
+        font-size: 0.9em; /* Reducir ligeramente el tamaño de fuente */
     }
 
     .mobile-schedule-header button.active {
