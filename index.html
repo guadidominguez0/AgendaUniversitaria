@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Agenda Universitaria</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1 class="app-title">Mi Agenda Universitaria</h1>
+            <p class="app-subtitle">Organiza tu horario académico de manera inteligente</p>
+        </div>
+
+        <!-- Widget View -->
+        <div class="widget-view">
+            <div class="current-time" id="currentTime"></div>
+            <div class="current-date" id="currentDate"></div>
+            <div id="currentSubjectContainer">
+                <div class="current-subject">
+                    <div class="subject-title" id="currentSubject">Sin clases en este momento</div>
+                    <div class="subject-time" id="currentSubjectTime"></div>
+                    <div class="subject-info" id="currentSubjectInfo"></div>
+                </div>
+            </div>
+            <div class="next-subjects">
+                <div class="next-title">Próximas clases</div>
+                <div id="nextSubjects">
+                    <div class="no-data">No hay próximas clases hoy</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('agenda')">Horario</button>
+            <button class="tab" onclick="showTab('schedule')">Materias</button>
+            <button class="tab" onclick="showTab('attendance')">Inasistencias</button>
+            <button class="tab" onclick="showTab('professors')">Profesores</button>
+        </div>
+
+        <!-- Management Panel -->
+        <div class="management-panel">
+            <!-- Weekly Agenda Tab -->
+            <div id="agenda-tab" class="tab-content active">
+                <h2 class="section-title">5° Semestre</h2>
+                <div id="semesterScheduleContainer"></div>
+            </div>
+
+            <!-- Schedule Tab -->
+            <div id="schedule-tab" class="tab-content">
+                <h2 class="section-title">Materias</h2>
+                <button id="showAddSubjectBtn" class="btn-success" onclick="toggleAddSubjectForm()">Agregar Nueva Materia</button>
+                <div id="addSubjectForm" style="display: none;">
+                    <div class="form-group">
+                        <label for="subjectName">Nombre de la materia:</label>
+                        <input type="text" id="subjectName" placeholder="Ej: Cálculo I, Física General, etc.">
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label for="addDayOfWeek">Día de la semana:</label>
+                            <select id="addDayOfWeek">
+                                <option value="1">Lunes</option>
+                                <option value="2">Martes</option>
+                                <option value="3">Miércoles</option>
+                                <option value="4">Jueves</option>
+                                <option value="5">Viernes</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="addStartPeriod">Período de inicio:</label>
+                            <select id="addStartPeriod" onchange="updateEndPeriodOptions('addStartPeriod','addEndPeriod')">
+                                <option value="">Selecciona período inicial</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="addEndPeriod">Período de finalización:</label>
+                            <select id="addEndPeriod">
+                                <option value="">Selecciona período final</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-success" onclick="addDayHourToMateria()">Agregar día/horario a esta materia</button>
+                    <div id="pendingDayHourList"></div>
+                    <hr style="margin:18px 0;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="modality">Modalidad:</label>
+                            <select id="modality">
+                                <option value="presencial">Presencial</option>
+                                <option value="virtual">Virtual</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="colorTheme">Color de identificación:</label>
+                            <div class="color-selector-container">
+                                <select id="colorTheme" onchange="updateColorPreview()">
+                                    <option value="brown-1">Marrón Oscuro</option>
+                                    <option value="brown-2">Marrón Rojizo</option>
+                                    <option value="brown-3">Dorado</option>
+                                    <option value="brown-4">Naranja</option>
+                                    <option value="brown-5">Beige</option>
+                                    <option value="extra-1">Lavanda</option>
+                                    <option value="extra-2">Rosa</option>
+                                    <option value="extra-3">Celeste</option>
+                                    <option value="extra-4">Amarillo</option>
+                                </select>
+                                <div class="color-preview-main">
+                                    <div id="selectedColorPreview" class="selected-color-preview brown-2"></div>
+                                    <span id="colorName" class="color-name">Marrón Rojizo</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="professorName">Nombre del profesor:</label>
+                            <input type="text" id="professorName" placeholder="Ej: Dr. Juan Pérez">
+                        </div>
+                        <div class="form-group">
+                            <label for="professorEmail">Email del profesor:</label>
+                            <input type="email" id="professorEmail" placeholder="profesor@universidad.edu">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="totalClasses">Horas cátedra totales (opcional):</label>
+                            <input type="number" id="totalClasses" placeholder="Ej: 32" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxAbsencePercentage">% mínimo de asistencia para regularizar (opcional):</label>
+                            <input type="number" id="maxAbsencePercentage" placeholder="Ej: 80" min="1" max="100">
+                        </div>
+                    </div>
+                    <button id="addSubjectBtn" onclick="addOrUpdateSubject()" class="btn-success">Agregar Materia</button>
+                </div>
+                <div class="schedule-grid" id="scheduleGrid"></div>
+            </div>
+
+            <!-- Attendance Tab -->
+            <div id="attendance-tab" class="tab-content">
+                <h2 class="section-title">Gestionar Inasistencias</h2>
+                <div class="form-group">
+                    <label for="attendanceSubject">Seleccionar materia:</label>
+                    <select id="attendanceSubject">
+                        <option value="">Selecciona una materia</option>
+                    </select>
+                </div>
+                <div class="attendance-controls">
+                    <button onclick="openAbsenceModal()" class="btn-danger">Agregar Inasistencia</button>
+                </div>
+                <div id="attendanceList"></div>
+            </div>
+
+            <!-- Professors Tab -->
+            <div id="professors-tab" class="tab-content">
+                <h2 class="section-title">Profesores</h2>
+                <div id="professorsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Absence Modal -->
+    <div id="absenceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Agregar Inasistencia</h3>
+                <button class="close-btn" onclick="closeAbsenceModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label for="absenceDate">Fecha de la inasistencia:</label>
+                <input type="date" id="absenceDate">
+            </div>
+            <div class="form-group">
+                <label for="absenceReason">Motivo (opcional):</label>
+                <textarea id="absenceReason" placeholder="Describe el motivo de la inasistencia..."></textarea>
+            </div>
+            <div class="form-row">
+                <button onclick="closeAbsenceModal()">Cancelar</button>
+                <button onclick="addAbsence()" class="btn-danger">Agregar Inasistencia</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
